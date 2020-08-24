@@ -4,9 +4,11 @@ import numpy as np
 import random
 import pickle
 import copy
+import numba
 from scipy.spatial.distance import cdist
 from scipy.spatial.distance import squareform
 import time
+import torch
 
 def euclid_distance(x, y):
     # 欧式距离
@@ -31,8 +33,19 @@ def assign_points(data, centroids):
         cluster_points[label].append(point)  # 将point加入距离最近的簇中
 
     """
-    distances = cdist(np.vstack(data), centroids, euclid_distance)
-    labels = np.argmin(distances, axis=1).tolist()
+    dev = torch.cuda.current_device()
+    # check if a GPU exists
+    CPU = False
+    if CPU:
+        distances = cdist(np.vstack(data), centroids, euclid_distance)
+        labels = np.argmin(distances, axis=1).tolist()
+
+    else:
+        pts1_t = torch.from_numpy(np.vstack(data)).cuda(0)
+        pts2_t = torch.from_numpy(centroids).cuda(0)
+        distances = torch.cdist(pts1_t, pts2_t, p=2)
+        labels = torch.argmin(distances, axis=1).cpu().numpy().tolist()
+
     cluster_points = [[centroid] for centroid in centroids]
 
     for idx, point in enumerate(data):
@@ -58,6 +71,7 @@ def pam(data, centroid_num):
     centroids = data[init_centroids_index, :]  # 中心点的数组
     labels = []  # The cluster to which each point belongs
     stop_flag = False
+    assign_points_exec_time = 0
     # stopping criteria: stop if no centroid assignments change.
     while not stop_flag:
         stop_flag = True
@@ -87,7 +101,9 @@ def pam(data, centroid_num):
             for point in data:
                 new_centroids = copy.deepcopy(centroids)  # 假设的中心集合
                 new_centroids[i] = point
+                start = time.time()
                 labels, cluster_points = assign_points(data, new_centroids)
+                assign_points_exec_time += time.time() - start
                 # 计算新的聚类误差
                 distances = []
                 for j in range(centroid_num):
@@ -99,4 +115,4 @@ def pam(data, centroid_num):
                     old_distances_sum = new_distances_sum
                     centroids[i] = point
                     stop_flag = False # centroid assignment changed, so toggle stop_flag
-    return centroids, labels, old_distances_sum
+    return centroids, labels, old_distances_sum, assign_points_exec_time

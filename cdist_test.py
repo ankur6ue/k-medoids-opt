@@ -6,7 +6,7 @@ import time
 print(torch.__version__)
 dev = torch.cuda.current_device()
 N = 5
-M1 = 80000 # 100000 results in OOM on a 1080 Ti GPU in full precision
+M1 = 180000 # 100000 results in OOM on a 1080 Ti GPU in full precision
 M2 = int(M1/10)
 pts1 = np.random.random_sample((M1, N))
 pts2 = np.random.random_sample((M2, N))
@@ -47,7 +47,7 @@ def torch_cdist(pts1, pts2, use_half=False):
 
 start = time.time()
 for i in range(0, 4):
-    labels_torch = torch_cdist(pts1, pts2)
+    labels_torch = torch_cdist(pts1, pts2, use_half=True)
 end = time.time()
 print('cdist-torch-GPU: {0}'.format(end-start))
 

@@ -14,9 +14,9 @@ from scipy.spatial.distance import squareform
 def setup_args():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--n_points', default=10000, type=int, required=False, help='Number of data points generated')
-    parser.add_argument('--subset_size', default=100, type=int, required=False, help='phase 1: The size of the sampled subset')
-    parser.add_argument('--subset_num', default=10, type=int, required=False, help='phase 1: Number of sampled subset')
+    parser.add_argument('--n_points', default=100000, type=int, required=False, help='Number of data points generated')
+    parser.add_argument('--subset_size', default=1000, type=int, required=False, help='phase 1: The size of the sampled subset')
+    parser.add_argument('--subset_num', default=2, type=int, required=False, help='phase 1: Number of sampled subset')
     parser.add_argument('--centroid_num', default=10, type=int, required=False, help='Number of cluster centers')
     return parser.parse_args()
 
@@ -84,10 +84,10 @@ def sampling_and_clustering(data, n_samples, centroid_num, dist_func):
     subset = random.sample(data, n_samples)
     subset = np.array(subset)
     # 对随机采样的子集进行聚类，获得子集的中心集合centroids
-    centroids, _, _ = pam(subset, centroid_num)
+    centroids, _, _, assign_points_exec_time = pam(subset, centroid_num)
     # 将Entire data的点划分到最近的中心，计算聚类误差
     labels, cluster_points, distances_sum = assign_points(data, centroids, dist_func)
-    return centroids, labels, distances_sum
+    return centroids, labels, distances_sum, assign_points_exec_time
 
 
 def search_centroid(data, dist_func):
@@ -151,9 +151,10 @@ def phase1(data, subset_size, subset_num, centroid_num, dist_func, pool):
     best_labels = None
     best_centroids = None
 
-    # 选择聚类误差最小的medoids
+    assign_points_exec_time = 0
     for i in range(0, subset_num):
-        centroids, labels, distances_sum = results[i].get()
+        centroids, labels, distances_sum, assign_points_exec_time_ = results[i].get()
+        assign_points_exec_time += assign_points_exec_time_
         if distances_sum < min_distancec_sum:
             min_distancec_sum = distances_sum
             best_centroids = centroids
@@ -161,6 +162,7 @@ def phase1(data, subset_size, subset_num, centroid_num, dist_func, pool):
     end = time.perf_counter()  # 计时结束
     phase1_time = end - start  # 耗费时间phase1 消耗的时间
     print("PHASE 1 Processing time：{}".format(phase1_time))
+    print("PHASE 1 Processing time (assign_points)：{}".format(assign_points_exec_time/subset_num))
     print("PHASE 1 Finished：")
     for centroid in best_centroids:
         print(centroid)
@@ -255,3 +257,15 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# cupy install instructions:
+# Install cuda:
+# https://developer.nvidia.com/cuda-downloads?target_os=Linux&target_arch=x86_64&target_distro=Ubuntu&target_version=1804&target_type=deblocal
+# make sure to add cuda binaries (eg nvcc) to the PATH:
+# export PATH=/usr/local/cuda-11.0/bin${PATH:+:${PATH}}
+# install cudnn
+# install nccl
+    ## after installing the local/network deb, do sudo apt update
+    ## then sudo apt install libnccl2=2.7.8-1+cuda11.0 libnccl-dev=2.7.8-1+cuda11.0
+# pip install cupy
